@@ -17,6 +17,16 @@
   flex: 0 0 auto;
 }
 
+/*
+ * iOS/iPadOS (WKWebView) applies native control styling to <button>, which
+ * overrides our background (graying out color swatches and squashing them into
+ * ellipses) and obscures the injected icons. Opt every toolbar button out of it.
+ */
+.ink-toolbar button {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
 .ink-tool-group {
   display: flex;
   align-items: center;

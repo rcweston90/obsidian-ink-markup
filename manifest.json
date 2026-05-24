@@ -1,7 +1,7 @@
 {
   "id": "obsidian-ink-markup",
   "name": "Ink Markup",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "minAppVersion": "1.4.0",
   "description": "Mark up markdown notes with freehand ink and export to PDF.",
   "author": "Charlie Weston",
