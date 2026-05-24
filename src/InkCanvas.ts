@@ -136,8 +136,9 @@ export class InkCanvas {
   }
 
   private onDown = (e: PointerEvent) => {
-    // TODO for iPad palm rejection: if (e.pointerType === 'touch') return;
+    if (e.pointerType === 'touch') return; // let a finger scroll the note natively
     this.canvas.setPointerCapture(e.pointerId);
+    this.canvas.toggleClass('is-drawing', true); // block scroll while a stroke is in progress
     const pt = this.localPt(e);
 
     if (this.tool === 'eraser') {
@@ -158,6 +159,7 @@ export class InkCanvas {
   };
 
   private onMove = (e: PointerEvent) => {
+    if (e.pointerType === 'touch') return;
     if (this.tool === 'eraser') {
       if (this.erasing) this.eraseAt(this.localPt(e));
       return;
@@ -167,7 +169,10 @@ export class InkCanvas {
     this.redraw();
   };
 
-  private onUp = () => {
+  private onUp = (e: PointerEvent) => {
+    if (e.pointerType === 'touch') return;
+    if (this.canvas.hasPointerCapture(e.pointerId)) this.canvas.releasePointerCapture(e.pointerId);
+    this.canvas.toggleClass('is-drawing', false); // restore finger-scroll
     if (this.tool === 'eraser') {
       if (this.erasing && this.erasedAny) {
         this.undoStack.push(this.eraseBefore);

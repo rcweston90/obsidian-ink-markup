@@ -132,11 +132,13 @@ export class InkView extends ItemView {
     const bar = container.createDiv({ cls: 'ink-toolbar' });
 
     const tools = bar.createDiv({ cls: 'ink-tool-group' });
-    this.toolButtons.pen = this.iconButton(tools, 'pencil', 'Pen', () => this.setTool('pen'));
-    this.toolButtons.highlighter = this.iconButton(tools, 'highlighter', 'Highlighter', () =>
+    this.toolButtons.pen = this.labeledToolButton(tools, 'pencil', 'Pen', () => this.setTool('pen'));
+    this.toolButtons.highlighter = this.labeledToolButton(tools, 'highlighter', 'Highlighter', () =>
       this.setTool('highlighter'),
     );
-    this.toolButtons.eraser = this.iconButton(tools, 'eraser', 'Eraser', () => this.setTool('eraser'));
+    this.toolButtons.eraser = this.labeledToolButton(tools, 'eraser', 'Eraser', () =>
+      this.setTool('eraser'),
+    );
 
     const colors = bar.createDiv({ cls: 'ink-tool-group ink-colors' });
     this.colorButtons = COLORS.map((c) => {
@@ -150,25 +152,43 @@ export class InkView extends ItemView {
     const widths = bar.createDiv({ cls: 'ink-tool-group ink-widths' });
     (['thin', 'medium', 'thick'] as WidthLevel[]).forEach((lvl) => {
       const b = widths.createEl('button', { cls: `ink-width ink-width-${lvl}` });
-      b.createDiv({ cls: 'ink-width-dot' });
+      b.createDiv({ cls: 'ink-width-line' });
       b.setAttr('aria-label', `${lvl} width`);
       b.addEventListener('click', () => this.setWidthLevel(lvl));
       this.widthButtons[lvl] = b;
     });
 
     const actions = bar.createDiv({ cls: 'ink-tool-group ink-actions' });
-    this.undoBtn = this.iconButton(actions, 'undo-2', 'Undo', () => {
-      this.inkCanvas?.undo();
-      this.refreshUndoRedo();
-    });
-    this.redoBtn = this.iconButton(actions, 'redo-2', 'Redo', () => {
-      this.inkCanvas?.redo();
-      this.refreshUndoRedo();
-    });
-    this.iconButton(actions, 'trash-2', 'Clear all ink', () => {
-      this.inkCanvas?.clear();
-      this.refreshUndoRedo();
-    });
+    this.undoBtn = this.iconButton(
+      actions,
+      'undo-2',
+      'Undo',
+      () => {
+        this.inkCanvas?.undo();
+        this.refreshUndoRedo();
+      },
+      'undo',
+    );
+    this.redoBtn = this.iconButton(
+      actions,
+      'redo-2',
+      'Redo',
+      () => {
+        this.inkCanvas?.redo();
+        this.refreshUndoRedo();
+      },
+      'redo',
+    );
+    this.iconButton(
+      actions,
+      'trash-2',
+      'Clear all ink',
+      () => {
+        this.inkCanvas?.clear();
+        this.refreshUndoRedo();
+      },
+      'trash',
+    );
     this.iconButton(actions, 'history', 'Version history', () => void this.openVersions());
     this.iconButton(actions, 'download', 'Export PDF', async () => {
       if (!this.contentEl_) return;
@@ -182,11 +202,31 @@ export class InkView extends ItemView {
     icon: string,
     label: string,
     onClick: () => void | Promise<void>,
+    fallbackIcon?: string,
   ): HTMLElement {
     const b = parent.createEl('button', { cls: 'ink-btn' });
     setIcon(b, icon);
+    // Some Lucide names (e.g. the -2 variants) may be missing in older bundled
+    // icon sets; fall back to a stable name so the button is never blank.
+    if (fallbackIcon && !b.querySelector('svg')) setIcon(b, fallbackIcon);
     b.setAttr('aria-label', label);
+    b.setAttr('title', label);
     b.addEventListener('click', () => void onClick());
+    return b;
+  }
+
+  private labeledToolButton(
+    parent: HTMLElement,
+    icon: string,
+    label: string,
+    onClick: () => void,
+  ): HTMLElement {
+    const b = parent.createEl('button', { cls: 'ink-tool-btn' });
+    const ic = b.createSpan({ cls: 'ink-tool-btn-icon' });
+    setIcon(ic, icon);
+    b.createSpan({ cls: 'ink-tool-btn-label', text: label });
+    b.setAttr('aria-label', label);
+    b.addEventListener('click', () => onClick());
     return b;
   }
 

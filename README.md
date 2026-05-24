@@ -8,11 +8,11 @@ An Obsidian plugin that opens a markdown note in a custom view with a freehand-i
 
 1. Open any markdown note.
 2. Open it for markup via the **pencil ribbon icon**, the note's **⋯ menu → "Open in Ink Markup,"** or the command **"Open current note in Ink Markup."**
-3. Draw over the rendered note with a mouse or Apple Pencil.
+3. Draw over the rendered note. On iPad, an **Apple Pencil draws** while a **finger scrolls** the note; on desktop the **mouse draws**.
 
 ### Toolbar
 
-- **Pen / Highlighter / Eraser** — the eraser removes whole strokes you touch.
+- **Pen / Highlighter / Eraser** (labeled) — the eraser removes whole strokes you touch.
 - **Color** presets and **width** presets (thin / medium / thick).
 - **Undo / redo** and **clear all**.
 - **Version history** — restore an earlier autosaved state (restoring keeps your current ink as a new version).
