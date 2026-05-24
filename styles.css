@@ -10,77 +10,41 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 0.75rem;
-  padding: 0.4rem 0.6rem;
+  gap: 0.4rem 0.6rem;
+  padding: 0.35rem 0.6rem;
   background: var(--background-secondary);
   border-bottom: 1px solid var(--background-modifier-border);
   flex: 0 0 auto;
 }
 
 /*
- * iOS/iPadOS (WKWebView) applies native control styling to <button>, which
- * overrides our background (graying out color swatches and squashing them into
- * ellipses) and obscures the injected icons. Opt every toolbar button out of it.
+ * iOS/iPadOS (WKWebView) applies native control styling to <button>. Reset it,
+ * and scope every control selector under .ink-toolbar so it out-specifies
+ * Obsidian's mobile `.is-mobile button` rules (which otherwise gray out the
+ * swatches and squash them into ellipses). Swatches/widths are also <div> now.
  */
 .ink-toolbar button {
   appearance: none;
   -webkit-appearance: none;
 }
 
-.ink-tool-group {
+.ink-toolbar .ink-tool-group {
   display: flex;
   align-items: center;
   gap: 0.25rem;
 }
-.ink-tool-group + .ink-tool-group {
-  padding-left: 0.75rem;
+.ink-toolbar .ink-tool-group + .ink-tool-group {
+  padding-left: 0.6rem;
   border-left: 1px solid var(--background-modifier-border);
 }
 
-.ink-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  min-width: 40px;
-  min-height: 40px;
-  padding: 0;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-.ink-btn:hover {
-  background: var(--background-modifier-hover);
-  color: var(--text-normal);
-}
-.ink-btn.is-active {
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
-}
-.ink-btn.is-disabled {
-  opacity: 0.35;
-  pointer-events: none;
-}
-
-/* Size the SVG that setIcon() injects (otherwise it collapses to 0 and looks blank). */
-.ink-btn svg,
-.ink-btn .svg-icon,
-.ink-tool-btn-icon svg,
-.ink-tool-btn-icon .svg-icon {
-  width: 20px;
-  height: 20px;
-}
-
-/* ---- labeled tool buttons (pen / highlighter / eraser) ---- */
-.ink-tool-btn {
+/* ---- labeled tool buttons (pen / highlighter / eraser): flat/ghost ---- */
+.ink-toolbar .ink-tool-btn {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  height: 40px;
-  padding: 0 0.7rem;
+  height: 36px;
+  padding: 0 0.6rem;
   border: none;
   border-radius: 8px;
   background: transparent;
@@ -88,23 +52,34 @@
   font-size: 0.9rem;
   cursor: pointer;
 }
-.ink-tool-btn:hover {
+.ink-toolbar .ink-tool-btn:hover {
   background: var(--background-modifier-hover);
   color: var(--text-normal);
 }
-.ink-tool-btn.is-active {
+.ink-toolbar .ink-tool-btn.is-active {
   background: var(--interactive-accent);
   color: var(--text-on-accent);
 }
-.ink-tool-btn-icon {
+.ink-toolbar .ink-tool-btn-icon {
   display: inline-flex;
   align-items: center;
 }
+.ink-toolbar .ink-tool-btn-icon svg,
+.ink-toolbar .ink-tool-btn-icon .svg-icon {
+  width: 18px;
+  height: 18px;
+}
 
-/* ---- color swatches ---- */
-.ink-swatch {
-  width: 28px;
-  height: 28px;
+/* ---- action icons (undo / redo / overflow): Obsidian's clickable-icon ---- */
+.ink-toolbar .ink-action.is-disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+/* ---- color swatches (non-button) ---- */
+.ink-toolbar .ink-swatch {
+  width: 26px;
+  height: 26px;
   padding: 0;
   border: 2px solid var(--background-secondary);
   border-radius: 50%;
@@ -112,45 +87,39 @@
   box-shadow: 0 0 0 1px var(--background-modifier-border);
   cursor: pointer;
 }
-.ink-swatch.is-active {
+.ink-toolbar .ink-swatch.is-active {
   box-shadow: 0 0 0 3px var(--interactive-accent);
 }
-.ink-swatch.is-disabled {
-  opacity: 0.4;
-  pointer-events: none;
-}
 
-/* ---- width presets ---- */
-.ink-width {
+/* ---- width presets (non-button): flat/ghost with a line preview ---- */
+.ink-toolbar .ink-width {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 40px;
-  padding: 0;
-  border: none;
+  width: 40px;
+  height: 34px;
   border-radius: 6px;
   background: transparent;
   cursor: pointer;
 }
-.ink-width:hover {
+.ink-toolbar .ink-width:hover {
   background: var(--background-modifier-hover);
 }
-.ink-width.is-active {
+.ink-toolbar .ink-width.is-active {
   background: var(--interactive-accent);
 }
-.ink-width.is-active .ink-width-line {
+.ink-toolbar .ink-width.is-active .ink-width-line {
   background: var(--text-on-accent);
 }
-.ink-width-line {
+.ink-toolbar .ink-width-line {
   width: 22px;
   border-radius: 2px;
   background: var(--text-muted);
 }
 /* Heights mirror the real pen widths (see WIDTHS in InkView.ts). */
-.ink-width-thin .ink-width-line { height: 2px; }
-.ink-width-medium .ink-width-line { height: 4px; }
-.ink-width-thick .ink-width-line { height: 7px; }
+.ink-toolbar .ink-width-thin .ink-width-line { height: 2px; }
+.ink-toolbar .ink-width-medium .ink-width-line { height: 4px; }
+.ink-toolbar .ink-width-thick .ink-width-line { height: 7px; }
 
 /* ---- scroll + canvas ---- */
 .ink-markup-scroll {

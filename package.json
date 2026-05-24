@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-ink-markup",
-	"version": "0.3.3",
+	"version": "0.3.4",
 	"description": "Mark up markdown notes with freehand ink and export to PDF.",
 	"main": "main.js",
 	"type": "module",
