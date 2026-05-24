@@ -1,20 +1,120 @@
-type Pt = { x: number; y: number; p: number };
-type Stroke = { points: Pt[]; color: string; width: number };
+import type { Pt, Stroke, Tool } from './inkStore';
 
+const HL_ALPHA = 0.35; // highlighter translucency
+const ERASE_BASE_RADIUS = 8; // hit slop in px, on top of half the stroke width
+const MAX_UNDO = 100;
+
+export type InkCanvasOptions = {
+  initialStrokes?: Stroke[];
+  onChange?: () => void;
+};
+
+/**
+ * Freehand-ink surface over the rendered note. Strokes are stored as vector
+ * data (so they persist, re-render crisply, and support undo/redo + erase).
+ * Every committed mutation produces a fresh `strokes` array, so undo/redo
+ * stacks can hold cheap array references rather than deep copies.
+ */
 export class InkCanvas {
   private ctx: CanvasRenderingContext2D;
-  private strokes: Stroke[] = [];
+  private strokes: Stroke[];
   private current: Stroke | null = null;
+  private undoStack: Stroke[][] = [];
+  private redoStack: Stroke[][] = [];
 
-  constructor(private canvas: HTMLCanvasElement, private content: HTMLElement) {
+  private tool: Tool = 'pen';
+  private color = '#d92020';
+  private penWidth = 4;
+  private hlWidth = 20;
+
+  // eraser gesture state
+  private erasing = false;
+  private erasedAny = false;
+  private eraseBefore: Stroke[] = [];
+
+  private onChange?: () => void;
+  private ro: ResizeObserver;
+
+  constructor(
+    private canvas: HTMLCanvasElement,
+    private content: HTMLElement,
+    opts: InkCanvasOptions = {},
+  ) {
     this.ctx = canvas.getContext('2d')!;
+    this.strokes = (opts.initialStrokes ?? []).map(cloneStroke);
+    this.onChange = opts.onChange;
+
     this.resize();
-    new ResizeObserver(() => this.resize()).observe(content);
+    this.ro = new ResizeObserver(() => this.resize());
+    this.ro.observe(content);
 
     canvas.addEventListener('pointerdown', this.onDown);
     canvas.addEventListener('pointermove', this.onMove);
     canvas.addEventListener('pointerup', this.onUp);
     canvas.addEventListener('pointercancel', this.onUp);
+  }
+
+  // ---- public API ----
+  setTool(t: Tool) { this.tool = t; }
+  setColor(c: string) { this.color = c; }
+  setPenWidth(w: number) { this.penWidth = w; }
+  setHighlighterWidth(w: number) { this.hlWidth = w; }
+
+  canUndo() { return this.undoStack.length > 0; }
+  canRedo() { return this.redoStack.length > 0; }
+
+  undo() {
+    const prev = this.undoStack.pop();
+    if (prev === undefined) return;
+    this.redoStack.push(this.strokes);
+    this.strokes = prev;
+    this.redraw();
+    this.onChange?.();
+  }
+
+  redo() {
+    const next = this.redoStack.pop();
+    if (next === undefined) return;
+    this.undoStack.push(this.strokes);
+    this.strokes = next;
+    this.redraw();
+    this.onChange?.();
+  }
+
+  clear() {
+    if (!this.strokes.length) return;
+    this.pushUndo();
+    this.strokes = [];
+    this.redraw();
+    this.onChange?.();
+  }
+
+  serialize(): Stroke[] {
+    return this.strokes.map(cloneStroke);
+  }
+
+  /** Replace all strokes (e.g. restoring a version); resets undo/redo history. */
+  load(strokes: Stroke[]) {
+    this.strokes = strokes.map(cloneStroke);
+    this.undoStack = [];
+    this.redoStack = [];
+    this.current = null;
+    this.redraw();
+  }
+
+  destroy() {
+    this.ro.disconnect();
+    this.canvas.removeEventListener('pointerdown', this.onDown);
+    this.canvas.removeEventListener('pointermove', this.onMove);
+    this.canvas.removeEventListener('pointerup', this.onUp);
+    this.canvas.removeEventListener('pointercancel', this.onUp);
+  }
+
+  // ---- internals ----
+  private pushUndo() {
+    this.undoStack.push(this.strokes);
+    if (this.undoStack.length > MAX_UNDO) this.undoStack.shift();
+    this.redoStack = [];
   }
 
   private resize() {
@@ -36,36 +136,123 @@ export class InkCanvas {
   }
 
   private onDown = (e: PointerEvent) => {
-    // TODO for iPad: if (e.pointerType !== 'pen') return;
+    // TODO for iPad palm rejection: if (e.pointerType === 'touch') return;
     this.canvas.setPointerCapture(e.pointerId);
-    this.current = { points: [this.localPt(e)], color: '#d33', width: 2 };
+    const pt = this.localPt(e);
+
+    if (this.tool === 'eraser') {
+      this.erasing = true;
+      this.erasedAny = false;
+      this.eraseBefore = this.strokes;
+      this.eraseAt(pt);
+      return;
+    }
+
+    const drawTool: 'pen' | 'highlighter' = this.tool === 'highlighter' ? 'highlighter' : 'pen';
+    this.current = {
+      points: [pt],
+      color: this.color,
+      width: drawTool === 'highlighter' ? this.hlWidth : this.penWidth,
+      tool: drawTool,
+    };
   };
 
   private onMove = (e: PointerEvent) => {
+    if (this.tool === 'eraser') {
+      if (this.erasing) this.eraseAt(this.localPt(e));
+      return;
+    }
     if (!this.current) return;
     this.current.points.push(this.localPt(e));
     this.redraw();
   };
 
   private onUp = () => {
-    if (this.current) this.strokes.push(this.current);
-    this.current = null;
+    if (this.tool === 'eraser') {
+      if (this.erasing && this.erasedAny) {
+        this.undoStack.push(this.eraseBefore);
+        if (this.undoStack.length > MAX_UNDO) this.undoStack.shift();
+        this.redoStack = [];
+        this.onChange?.();
+      }
+      this.erasing = false;
+      this.erasedAny = false;
+      return;
+    }
+    if (this.current) {
+      this.pushUndo();
+      this.strokes = [...this.strokes, this.current];
+      this.current = null;
+      this.redraw();
+      this.onChange?.();
+    }
   };
+
+  private eraseAt(pt: Pt) {
+    const toRemove = new Set<Stroke>();
+    for (const s of this.strokes) {
+      const r = ERASE_BASE_RADIUS + s.width / 2;
+      const pts = s.points;
+      if (pts.length === 1) {
+        const a = pts[0]!;
+        if (Math.hypot(pt.x - a.x, pt.y - a.y) <= r) toRemove.add(s);
+        continue;
+      }
+      for (let i = 1; i < pts.length; i++) {
+        const a = pts[i - 1]!;
+        const b = pts[i]!;
+        if (distToSeg(pt.x, pt.y, a.x, a.y, b.x, b.y) <= r) {
+          toRemove.add(s);
+          break;
+        }
+      }
+    }
+    if (toRemove.size) {
+      this.erasedAny = true;
+      this.strokes = this.strokes.filter((s) => !toRemove.has(s));
+      this.redraw();
+    }
+  }
 
   private redraw() {
     const dpr = window.devicePixelRatio || 1;
     this.ctx.clearRect(0, 0, this.canvas.width / dpr, this.canvas.height / dpr);
-    const all = [...this.strokes, ...(this.current ? [this.current] : [])];
+    const all = this.current ? [...this.strokes, this.current] : this.strokes;
     for (const s of all) {
+      this.ctx.save();
       this.ctx.strokeStyle = s.color;
       this.ctx.lineWidth = s.width;
       this.ctx.lineCap = 'round';
       this.ctx.lineJoin = 'round';
+      this.ctx.globalAlpha = s.tool === 'highlighter' ? HL_ALPHA : 1;
       this.ctx.beginPath();
-      s.points.forEach((p, i) => i === 0 ? this.ctx.moveTo(p.x, p.y) : this.ctx.lineTo(p.x, p.y));
+      const pts = s.points;
+      for (let i = 0; i < pts.length; i++) {
+        const p = pts[i]!;
+        if (i === 0) this.ctx.moveTo(p.x, p.y);
+        else this.ctx.lineTo(p.x, p.y);
+      }
       this.ctx.stroke();
+      this.ctx.restore();
     }
   }
+}
 
-  clear() { this.strokes = []; this.redraw(); }
+function cloneStroke(s: Stroke): Stroke {
+  return {
+    color: s.color,
+    width: s.width,
+    tool: s.tool,
+    points: s.points.map((p) => ({ x: p.x, y: p.y, p: p.p })),
+  };
+}
+
+function distToSeg(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return Math.hypot(px - ax, py - ay);
+  let t = ((px - ax) * dx + (py - ay) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
 }

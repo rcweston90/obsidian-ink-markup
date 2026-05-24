@@ -3,7 +3,7 @@ import { InkView, INK_VIEW_TYPE } from './InkView';
 
 export default class InkMarkupPlugin extends Plugin {
   async onload() {
-    this.registerView(INK_VIEW_TYPE, (leaf) => new InkView(leaf));
+    this.registerView(INK_VIEW_TYPE, (leaf) => new InkView(leaf, this));
 
     // Left-ribbon button (also shows on mobile) — opens the active note for markup.
     this.addRibbonIcon('pencil', 'Open current note in Ink Markup', () => {
