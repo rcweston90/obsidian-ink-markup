@@ -52,6 +52,13 @@ export class InkCanvas {
     canvas.addEventListener('pointermove', this.onMove);
     canvas.addEventListener('pointerup', this.onUp);
     canvas.addEventListener('pointercancel', this.onUp);
+
+    // iPad: the Apple Pencil also emits touch events (touchType 'stylus').
+    // Cancel those at the start so the browser never begins a scroll for pen
+    // input (the "jump" before a stroke registers). Finger touches ('direct')
+    // are left untouched so they keep scrolling natively, with momentum.
+    canvas.addEventListener('touchstart', this.onTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', this.onTouchMove, { passive: false });
   }
 
   // ---- public API ----
@@ -108,6 +115,8 @@ export class InkCanvas {
     this.canvas.removeEventListener('pointermove', this.onMove);
     this.canvas.removeEventListener('pointerup', this.onUp);
     this.canvas.removeEventListener('pointercancel', this.onUp);
+    this.canvas.removeEventListener('touchstart', this.onTouchStart);
+    this.canvas.removeEventListener('touchmove', this.onTouchMove);
   }
 
   // ---- internals ----
@@ -192,6 +201,24 @@ export class InkCanvas {
       this.onChange?.();
     }
   };
+
+  private onTouchStart = (e: TouchEvent) => {
+    if (this.hasStylusTouch(e)) e.preventDefault();
+  };
+
+  private onTouchMove = (e: TouchEvent) => {
+    if (this.hasStylusTouch(e)) e.preventDefault();
+  };
+
+  // WebKit (iPad) tags each touch as 'direct' (finger) or 'stylus' (Apple Pencil).
+  private hasStylusTouch(e: TouchEvent): boolean {
+    const list = e.touches.length ? e.touches : e.changedTouches;
+    for (let i = 0; i < list.length; i++) {
+      const t = list.item(i) as (Touch & { touchType?: string }) | null;
+      if (t && t.touchType === 'stylus') return true;
+    }
+    return false;
+  }
 
   private eraseAt(pt: Pt) {
     const toRemove = new Set<Stroke>();
