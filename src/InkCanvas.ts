@@ -36,9 +36,14 @@ export class InkCanvas {
   private ro: ResizeObserver;
   private rafId: number | null = null;
 
+  // line-spacing remap session state
+  private remapOriginals: Stroke[] | null = null;
+  private remapCentroids: number[] | null = null;
+
   constructor(
     private canvas: HTMLCanvasElement,
     private content: HTMLElement,
+    private wrapper: HTMLElement,
     opts: InkCanvasOptions = {},
   ) {
     this.ctx = canvas.getContext('2d')!;
@@ -48,6 +53,7 @@ export class InkCanvas {
     this.resize();
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(content);
+    this.ro.observe(wrapper);
 
     canvas.addEventListener('pointerdown', this.onDown);
     canvas.addEventListener('pointermove', this.onMove);
@@ -110,6 +116,46 @@ export class InkCanvas {
     this.redraw();
   }
 
+  // ---- line-spacing remap (rigid per-block translation) ----
+  /** Snapshot strokes + their centroid Y at the start of a layout (line-spacing) drag. */
+  beginRemap() {
+    this.remapOriginals = this.strokes.map(cloneStroke);
+    this.remapCentroids = this.remapOriginals.map(centroidY);
+  }
+
+  /**
+   * Re-place each stroke = its original translated vertically by
+   * `dyForCentroid(centroidY)`. Rebuilds from the immutable snapshot every tick,
+   * so repeated drags never accumulate drift.
+   */
+  applyRemap(dyForCentroid: (centroidY: number) => number) {
+    const orig = this.remapOriginals;
+    const cys = this.remapCentroids;
+    if (!orig || !cys) return;
+    this.strokes = orig.map((s, i) => {
+      const dy = dyForCentroid(cys[i]!);
+      if (dy === 0) return s;
+      return {
+        color: s.color,
+        width: s.width,
+        tool: s.tool,
+        points: s.points.map((p) => ({ x: p.x, y: p.y + dy, p: p.p })),
+      };
+    });
+    this.redraw();
+  }
+
+  /** End a remap session; if committed, clear undo/redo (stale positions) and notify. */
+  endRemap(committed: boolean) {
+    this.remapOriginals = null;
+    this.remapCentroids = null;
+    if (committed) {
+      this.undoStack = [];
+      this.redoStack = [];
+      this.onChange?.();
+    }
+  }
+
   destroy() {
     this.ro.disconnect();
     this.canvas.removeEventListener('pointerdown', this.onDown);
@@ -129,20 +175,34 @@ export class InkCanvas {
   }
 
   private resize() {
-    const w = this.content.scrollWidth;
-    const h = this.content.scrollHeight;
+    // Canvas covers the whole wrapper (so the margins are drawable); the drawing
+    // origin is shifted to the content's top-left so stroke coords stay
+    // content-relative (and backward compatible with saved ink).
+    const w = this.wrapper.scrollWidth;
+    const h = this.wrapper.scrollHeight;
     const dpr = window.devicePixelRatio || 1;
-    this.canvas.width = w * dpr;
-    this.canvas.height = h * dpr;
+    this.canvas.width = Math.ceil(w * dpr);
+    this.canvas.height = Math.ceil(h * dpr);
     this.canvas.style.width = `${w}px`;
     this.canvas.style.height = `${h}px`;
+    const { offX, offY } = this.contentOffset();
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.ctx.scale(dpr, dpr);
+    this.ctx.translate(offX, offY); // applied after the dpr scale → logical px
     this.redraw();
   }
 
+  /** Content top-left relative to the wrapper (i.e. the page margin), in CSS px. */
+  private contentOffset(): { offX: number; offY: number } {
+    const cr = this.content.getBoundingClientRect();
+    const wr = this.wrapper.getBoundingClientRect();
+    return { offX: cr.left - wr.left, offY: cr.top - wr.top };
+  }
+
   private localPt(e: PointerEvent): Pt {
-    const r = this.canvas.getBoundingClientRect();
+    // Relative to the content top-left; points in the margins are negative — fine,
+    // because the ctx is translated by the same offset.
+    const r = this.content.getBoundingClientRect();
     return { x: e.clientX - r.left, y: e.clientY - r.top, p: e.pressure || 0.5 };
   }
 
@@ -252,8 +312,11 @@ export class InkCanvas {
 
   /** Repaint every stroke from scratch. Used for committed changes. */
   private paint() {
-    const dpr = window.devicePixelRatio || 1;
-    this.ctx.clearRect(0, 0, this.canvas.width / dpr, this.canvas.height / dpr);
+    // Clear the full device buffer regardless of the active scale/translate.
+    this.ctx.save();
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.restore();
     const all = this.current ? [...this.strokes, this.current] : this.strokes;
     for (const s of all) {
       this.ctx.save();
@@ -323,6 +386,13 @@ function cloneStroke(s: Stroke): Stroke {
     tool: s.tool,
     points: s.points.map((p) => ({ x: p.x, y: p.y, p: p.p })),
   };
+}
+
+function centroidY(s: Stroke): number {
+  if (!s.points.length) return 0;
+  let sum = 0;
+  for (const p of s.points) sum += p.y;
+  return sum / s.points.length;
 }
 
 function distToSeg(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {

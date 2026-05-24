@@ -17,10 +17,17 @@ export type InkVersion = {
   strokes: Stroke[];
 };
 
+/** Per-note page layout. `lineHeight: null` means "use the theme default". */
+export type InkLayout = {
+  marginRem: number;
+  lineHeight: number | null;
+};
+
 export type InkDoc = {
   notePath: string;
   current: Stroke[];
   versions: InkVersion[];
+  layout?: InkLayout;
 };
 
 const MAX_VERSIONS = 20;
@@ -53,6 +60,7 @@ export class InkStore {
           notePath,
           current: doc.current ?? [],
           versions: doc.versions ?? [],
+          layout: doc.layout,
         };
       } catch (e) {
         console.error('Ink Markup: failed to parse ink doc', path, e);
@@ -67,10 +75,17 @@ export class InkStore {
     await adapter.write(this.pathFor(doc.notePath), JSON.stringify(doc));
   }
 
-  /** Debounced live-state save — overwrites `current`, leaves versions untouched. */
+  /** Debounced live-state save — overwrites `current`, leaves versions/layout untouched. */
   async saveCurrent(notePath: string, strokes: Stroke[]): Promise<void> {
     const doc = await this.load(notePath);
     doc.current = strokes;
+    await this.write(doc);
+  }
+
+  /** Persist per-note page layout without touching strokes or versions. */
+  async saveLayout(notePath: string, layout: InkLayout): Promise<void> {
+    const doc = await this.load(notePath);
+    doc.layout = layout;
     await this.write(doc);
   }
 

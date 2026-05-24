@@ -129,21 +129,56 @@
 }
 .ink-wrapper {
   position: relative;
-  padding: 2rem;
+  width: max-content;          /* shrink-wrap the fixed-width column + margins */
+  padding: var(--ink-margin, 2rem);
 }
 .ink-content {
   position: relative;
   z-index: 1;
+  width: var(--ink-measure, auto);   /* fixed column width → margin changes don't re-wrap text */
+  line-height: var(--ink-line-height, inherit);
 }
 .ink-layer {
   position: absolute;
-  top: 2rem;
-  left: 2rem;
+  top: 0;            /* covers the whole wrapper incl. margins; offset is in the ctx transform */
+  left: 0;
   z-index: 2;
   touch-action: pan-x pan-y; /* a finger can scroll/pan the note */
 }
 .ink-layer.is-drawing {
   touch-action: none; /* pen/mouse stroke in progress — never let it scroll */
+}
+
+/* ---- page-layout popover (line spacing + margin sliders) ---- */
+.ink-layout-popover {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  width: 232px;
+  padding: 0.85rem;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-s, 0 4px 18px rgba(0, 0, 0, 0.25));
+}
+.ink-layout-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.ink-layout-row-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.ink-layout-popover input[type='range'] {
+  width: 100%;
+}
+.ink-layout-reset {
+  align-self: flex-end;
 }
 
 /* ---- version history modal ---- */

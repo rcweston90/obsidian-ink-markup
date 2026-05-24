@@ -15,6 +15,7 @@ An Obsidian plugin that opens a markdown note in a custom view with a freehand-i
 - **Pen / Highlighter / Eraser** (labeled) — the eraser removes whole strokes you touch.
 - **Color** presets and **width** presets (thin / medium / thick).
 - **Undo / redo**.
+- **Page layout** (sliders icon) — open a popover with **Line spacing** and **Margin** sliders. Widen the margins to write beside the text and increase line spacing to write between the lines; existing ink re-anchors to the text (moves with its paragraph). Saved per note.
 - **⋯ menu** — Clear all ink, **Version history** (restore an earlier autosaved state; restoring keeps your current ink as a new version), and **Export PDF** (flatten the note + ink to a PDF).
 
 Ink autosaves per note and re-opens where you left off. Saved data lives in the plugin's folder (`.obsidian/plugins/obsidian-ink-markup/ink/`); it syncs across devices only if your whole vault syncs (e.g. iCloud Drive).
