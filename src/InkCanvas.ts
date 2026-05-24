@@ -34,6 +34,7 @@ export class InkCanvas {
 
   private onChange?: () => void;
   private ro: ResizeObserver;
+  private rafId: number | null = null;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -117,6 +118,7 @@ export class InkCanvas {
     this.canvas.removeEventListener('pointercancel', this.onUp);
     this.canvas.removeEventListener('touchstart', this.onTouchStart);
     this.canvas.removeEventListener('touchmove', this.onTouchMove);
+    if (this.rafId !== null) cancelAnimationFrame(this.rafId);
   }
 
   // ---- internals ----
@@ -175,7 +177,9 @@ export class InkCanvas {
     }
     if (!this.current) return;
     this.current.points.push(this.localPt(e));
-    this.redraw();
+    // Pen: draw just the new segment (cheap). Highlighter: throttled full repaint.
+    if (this.current.tool === 'pen') this.drawLastSegment();
+    else this.scheduleRepaint();
   };
 
   private onUp = (e: PointerEvent) => {
@@ -242,11 +246,12 @@ export class InkCanvas {
     if (toRemove.size) {
       this.erasedAny = true;
       this.strokes = this.strokes.filter((s) => !toRemove.has(s));
-      this.redraw();
+      this.scheduleRepaint();
     }
   }
 
-  private redraw() {
+  /** Repaint every stroke from scratch. Used for committed changes. */
+  private paint() {
     const dpr = window.devicePixelRatio || 1;
     this.ctx.clearRect(0, 0, this.canvas.width / dpr, this.canvas.height / dpr);
     const all = this.current ? [...this.strokes, this.current] : this.strokes;
@@ -267,6 +272,47 @@ export class InkCanvas {
       this.ctx.stroke();
       this.ctx.restore();
     }
+  }
+
+  /** Synchronous full repaint (undo/redo/clear/load/resize/commit). */
+  private redraw() {
+    if (this.rafId !== null) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
+    this.paint();
+  }
+
+  /** Coalesce per-move full repaints (highlighter/eraser) to one per frame. */
+  private scheduleRepaint() {
+    if (this.rafId !== null) return;
+    this.rafId = requestAnimationFrame(() => {
+      this.rafId = null;
+      this.paint();
+    });
+  }
+
+  /**
+   * Pen ink is opaque, so during a stroke we draw only the newest segment on top
+   * of what's already on the canvas — O(1) per move instead of repainting every
+   * stroke, which is what caused draw latency on long notes.
+   */
+  private drawLastSegment() {
+    if (!this.current) return;
+    const pts = this.current.points;
+    if (pts.length < 2) return;
+    const a = pts[pts.length - 2]!;
+    const b = pts[pts.length - 1]!;
+    this.ctx.save();
+    this.ctx.strokeStyle = this.current.color;
+    this.ctx.lineWidth = this.current.width;
+    this.ctx.lineCap = 'round';
+    this.ctx.lineJoin = 'round';
+    this.ctx.beginPath();
+    this.ctx.moveTo(a.x, a.y);
+    this.ctx.lineTo(b.x, b.y);
+    this.ctx.stroke();
+    this.ctx.restore();
   }
 }
 
