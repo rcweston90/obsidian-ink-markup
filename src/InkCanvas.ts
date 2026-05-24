@@ -53,7 +53,8 @@ export class InkCanvas {
     this.resize();
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(content);
-    this.ro.observe(wrapper);
+    // Border-box so wrapper *padding* (the page margin) changes also fire the observer.
+    this.ro.observe(wrapper, { box: 'border-box' });
 
     canvas.addEventListener('pointerdown', this.onDown);
     canvas.addEventListener('pointermove', this.onMove);
@@ -105,6 +106,11 @@ export class InkCanvas {
 
   serialize(): Stroke[] {
     return this.strokes.map(cloneStroke);
+  }
+
+  /** Re-measure wrapper/content geometry, resize, and repaint (e.g. after a margin change). */
+  reflow() {
+    this.resize();
   }
 
   /** Replace all strokes (e.g. restoring a version); resets undo/redo history. */

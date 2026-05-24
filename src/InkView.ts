@@ -57,6 +57,7 @@ export class InkView extends ItemView {
   private outsideClickHandler?: (e: MouseEvent) => void;
   private remapBlockTopsOrig: number[] | null = null;
   private remapPending = false;
+  private marginReflowPending = false;
 
   private autosaveTimer: number | null = null;
   private changedSinceVersion = false;
@@ -183,10 +184,20 @@ export class InkView extends ItemView {
     return 1.5;
   }
 
-  /** Margin = pure outer padding; the wrapper ResizeObserver re-offsets the canvas. */
+  /**
+   * Margin = pure outer padding (no text reflow). Changing the wrapper's padding doesn't
+   * change its content box, so we can't rely on the ResizeObserver — re-measure the canvas
+   * offset explicitly on the next frame (throttled) so the ink stays glued to the text.
+   */
   private setMargin(rem: number) {
     this.marginRem = rem;
     this.wrapperEl_.style.setProperty('--ink-margin', `${rem}rem`);
+    if (this.marginReflowPending) return;
+    this.marginReflowPending = true;
+    requestAnimationFrame(() => {
+      this.marginReflowPending = false;
+      this.inkCanvas?.reflow();
+    });
   }
 
   private measureBlockTops(): number[] {
