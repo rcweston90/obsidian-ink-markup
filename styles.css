@@ -1,0 +1,11 @@
+.ink-markup-root { overflow: auto; height: 100%; }
+.ink-wrapper { position: relative; padding: 2rem; }
+.ink-content { position: relative; z-index: 1; }
+.ink-layer {
+  position: absolute;
+  top: 2rem;
+  left: 2rem;
+  z-index: 2;
+  touch-action: none;
+  pointer-events: auto;
+}
